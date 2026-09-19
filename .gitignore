@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+.DS_Store
+CLAUDE.md
+uv.toml
+
+# Workspace standard ignores
+*.pyd
+*.pyo
+.env
+.envrc
+.venv
+_NOTES.md
+__pycache__
