@@ -30,7 +30,13 @@ class CompletionResult:
     output_tokens: int | None = None
 
 
-async def complete_one(provider_name: str, model: str | None, system: str, user: str) -> CompletionResult:
+async def complete_one(
+    provider_name: str,
+    model: str | None,
+    system: str,
+    user: str,
+    images: list[str] | None = None,
+) -> CompletionResult:
     """Run one completion. Provider failures land in the result, not an
     exception -- required for /compare, where one bad model must not sink
     the others in the same batch; /complete reuses this and raises at the
@@ -39,7 +45,7 @@ async def complete_one(provider_name: str, model: str | None, system: str, user:
     started = time.monotonic()
     try:
         provider = resolve_provider(PROVIDERS, provider_name, model)
-        text = await provider.acomplete(system, user)
+        text = await provider.acomplete(system, user, images=images)
         return CompletionResult(
             provider=provider_name,
             model=provider.model,

@@ -6,6 +6,9 @@ class CompleteRequest(BaseModel):
     model: str | None = None
     system: str
     user: str
+    # Base64-encoded image data, no data-URI prefix -- matches BaseProvider's
+    # own `images` convention exactly (see AnthropicProvider._build_messages).
+    images: list[str] | None = None
 
 
 class CompleteResponse(BaseModel):

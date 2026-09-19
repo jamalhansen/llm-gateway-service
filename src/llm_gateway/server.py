@@ -48,7 +48,7 @@ def _log(result: CompletionResult, trace_id: str) -> None:
 @app.post("/complete", response_model=CompleteResponse, dependencies=[Depends(verify_token)])
 async def complete(req: CompleteRequest) -> CompleteResponse:
     trace_id = str(uuid.uuid4())
-    result = await complete_one(req.provider, req.model, req.system, req.user)
+    result = await complete_one(req.provider, req.model, req.system, req.user, images=req.images)
     _log(result, trace_id)
     if result.error:
         raise HTTPException(status_code=502, detail=result.error)

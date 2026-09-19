@@ -24,6 +24,24 @@ class TestCompleteOne:
         assert result.text is None
         assert "boom" in result.error
 
+    @pytest.mark.asyncio
+    async def test_images_are_forwarded_to_the_provider(self):
+        captured = {}
+
+        class FakeProvider:
+            model = "vision-model"
+            input_tokens = None
+            output_tokens = None
+
+            async def acomplete(self, system, user, images=None):
+                captured["images"] = images
+                return "I see a cat"
+
+        with patch("llm_gateway.core.resolve_provider", return_value=FakeProvider()):
+            result = await complete_one("anthropic", None, "system", "user", images=["b64data"])
+        assert result.text == "I see a cat"
+        assert captured["images"] == ["b64data"]
+
 
 class TestCompare:
     @pytest.mark.asyncio

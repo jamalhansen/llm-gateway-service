@@ -33,6 +33,29 @@ class TestCompleteEndpoint:
         assert body["text"] == "a real answer"
         assert "trace_id" in body
 
+    def test_images_field_is_forwarded_to_complete_one(self, monkeypatch):
+        client = _client(monkeypatch)
+        captured = {}
+
+        class FakeProvider:
+            model = "vision-model"
+            input_tokens = None
+            output_tokens = None
+
+            async def acomplete(self, system, user, images=None):
+                captured["images"] = images
+                return "I see a cat"
+
+        with patch("llm_gateway.core.resolve_provider", return_value=FakeProvider()):
+            response = client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u", "images": ["b64data"]},
+                headers=AUTH,
+            )
+        assert response.status_code == 200
+        assert response.json()["text"] == "I see a cat"
+        assert captured["images"] == ["b64data"]
+
     def test_provider_error_returns_502(self, monkeypatch):
         client = _client(monkeypatch)
         mock = MockProvider(raise_error="provider down")
