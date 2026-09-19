@@ -7,6 +7,7 @@ dependencies = [
     "local-first-common[all-providers]",
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
+    "duckdb>=1.5.0",
 ]
 
 [project.scripts]

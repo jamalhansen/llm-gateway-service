@@ -1077,6 +1077,7 @@ name = "llm-gateway-service"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "duckdb" },
     { name = "fastapi" },
     { name = "local-first-common", extra = ["all-providers"] },
     { name = "uvicorn" },
@@ -1092,6 +1093,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", specifier = ">=1.5.0" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "local-first-common", extras = ["all-providers"], git = "https://github.com/jamalhansen/local-first-common.git?branch=main" },
     { name = "uvicorn", specifier = ">=0.32.0" },

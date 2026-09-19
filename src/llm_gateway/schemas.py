@@ -9,6 +9,10 @@ class CompleteRequest(BaseModel):
     # Base64-encoded image data, no data-URI prefix -- matches BaseProvider's
     # own `images` convention exactly (see AnthropicProvider._build_messages).
     images: list[str] | None = None
+    # Opt-in only: when true, the real prompt/response is persisted to
+    # traces.py's separate database. Default logging (processing_log) stays
+    # metadata-only either way. See traces.py's module docstring.
+    trace: bool = False
 
 
 class CompleteResponse(BaseModel):
@@ -30,6 +34,7 @@ class CompareRequest(BaseModel):
     system: str
     user: str
     calls: list[CompareCall]
+    trace: bool = False
 
 
 class CompareResultItem(BaseModel):

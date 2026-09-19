@@ -3,17 +3,13 @@
 Auth via a shared bearer token (auth.py) on every route except /health.
 Binds to 127.0.0.1 only -- see BrainSync tool doc 49.
 
-Tracing decision (made without Jamal's sign-off, since this was built while
-he was offline -- flag for review): every call gets a trace_id (returned to
-the caller) and is logged via timed_run using that trace_id as
-source_location, so related calls -- e.g. every model in one /compare
-request -- can be found together later in processing_log. That log entry is
-metadata only (model, tokens, duration), matching the existing schema's
-"no prompt/response text" property exactly. The actual completion text is
-returned to the caller and NOT persisted anywhere by this service. This
-was the conservative default given the earlier security discussion (logging
-today stores no conversation content); revisit if trace_id-based
-correlation alone isn't enough and full-content replay is actually wanted.
+Tracing (2026-09-19, revised from the original overnight decision): every
+call still gets a trace_id and a metadata-only processing_log entry by
+default -- no prompt/response text, matching the existing schema exactly.
+On top of that, a caller can now opt in per call (`"trace": true`) to have
+the real prompt/response persisted to traces.py's separate database. The
+default behavior for every existing caller is unchanged; tracing real
+content is deliberate and per-call, never automatic.
 """
 import os
 import uuid
@@ -31,6 +27,7 @@ from .schemas import (
     CompleteRequest,
     CompleteResponse,
 )
+from .traces import write_trace
 
 TOOL_NAME = "llm-gateway-service"
 _TOOL = register_tool(TOOL_NAME)
@@ -50,6 +47,8 @@ async def complete(req: CompleteRequest) -> CompleteResponse:
     trace_id = str(uuid.uuid4())
     result = await complete_one(req.provider, req.model, req.system, req.user, images=req.images)
     _log(result, trace_id)
+    if req.trace:
+        write_trace(trace_id, "complete", result.provider, result.model, req.system, req.user, result.text, result.error)
     if result.error:
         raise HTTPException(status_code=502, detail=result.error)
     return CompleteResponse(
@@ -70,6 +69,10 @@ async def compare_endpoint(req: CompareRequest) -> CompareResponse:
     results = await compare(req.system, req.user, calls)
     for result in results:
         _log(result, trace_id)
+        if req.trace:
+            write_trace(
+                trace_id, "compare", result.provider, result.model, req.system, req.user, result.text, result.error
+            )
     return CompareResponse(
         trace_id=trace_id,
         results=[

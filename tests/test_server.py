@@ -67,6 +67,35 @@ class TestCompleteEndpoint:
             )
         assert response.status_code == 502
 
+    def test_trace_false_never_calls_write_trace(self, monkeypatch):
+        client = _client(monkeypatch)
+        mock = MockProvider(response="a real answer")
+        with (
+            patch("llm_gateway.core.resolve_provider", return_value=mock),
+            patch("llm_gateway.server.write_trace") as mock_write,
+        ):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u"},
+                headers=AUTH,
+            )
+        mock_write.assert_not_called()
+
+    def test_trace_true_persists_the_real_content(self, monkeypatch):
+        client = _client(monkeypatch)
+        mock = MockProvider(response="a real answer")
+        with (
+            patch("llm_gateway.core.resolve_provider", return_value=mock),
+            patch("llm_gateway.server.write_trace") as mock_write,
+        ):
+            response = client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u", "trace": True},
+                headers=AUTH,
+            )
+        trace_id = response.json()["trace_id"]
+        mock_write.assert_called_once_with(trace_id, "complete", "anthropic", mock.model, "s", "u", "a real answer", None)
+
 
 class TestCompareEndpoint:
     def test_requires_auth(self, monkeypatch):
@@ -99,6 +128,26 @@ class TestCompareEndpoint:
         assert by_provider["good-provider"]["text"] == "good"
         assert by_provider["bad-provider"]["error"] == "bad"
         assert "trace_id" in body
+
+    def test_trace_true_persists_every_call_in_the_batch(self, monkeypatch):
+        client = _client(monkeypatch)
+        good = MockProvider(response="good")
+
+        with (
+            patch("llm_gateway.core.resolve_provider", return_value=good),
+            patch("llm_gateway.server.write_trace") as mock_write,
+        ):
+            client.post(
+                "/compare",
+                json={
+                    "system": "s",
+                    "user": "u",
+                    "calls": [{"provider": "p1"}, {"provider": "p2"}],
+                    "trace": True,
+                },
+                headers=AUTH,
+            )
+        assert mock_write.call_count == 2
 
 
 class TestHealth:
