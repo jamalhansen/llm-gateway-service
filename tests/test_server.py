@@ -108,7 +108,7 @@ class TestCompareEndpoint:
         good = MockProvider(response="good")
         bad = MockProvider(raise_error="bad")
 
-        def fake_resolve(providers, provider_name, model):
+        def fake_resolve(providers, provider_name, model, **kwargs):
             return good if provider_name == "good-provider" else bad
 
         with patch("llm_gateway.core.resolve_provider", side_effect=fake_resolve):

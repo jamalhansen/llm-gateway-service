@@ -44,7 +44,13 @@ async def complete_one(
     """
     started = time.monotonic()
     try:
-        provider = resolve_provider(PROVIDERS, provider_name, model)
+        # use_gateway=False: this process IS the gateway -- it inherits
+        # LLM_GATEWAY_URL from the same shell env as every other tool, and
+        # without this, resolve_provider() would route back through the
+        # gateway branch and build a provider that calls this same server,
+        # recursively, over HTTP. See local_first_common.cli.resolve_provider's
+        # docstring (2026-09-20 incident).
+        provider = resolve_provider(PROVIDERS, provider_name, model, use_gateway=False)
         text = await provider.acomplete(system, user, images=images)
         return CompletionResult(
             provider=provider_name,

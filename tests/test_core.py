@@ -43,13 +43,26 @@ class TestCompleteOne:
         assert captured["images"] == ["b64data"]
 
 
+class TestCompleteOneUsesGatewayFalse:
+    @pytest.mark.asyncio
+    async def test_resolve_provider_called_with_use_gateway_false(self):
+        """Regression for the 2026-09-20 self-recursion incident: this
+        process IS the gateway, and inherits LLM_GATEWAY_URL from the same
+        shell env as every other tool -- without use_gateway=False its own
+        resolve_provider() call would route back through itself."""
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock) as fake:
+            await complete_one("ollama", "phi4-mini", "system", "user")
+        assert fake.call_args.kwargs.get("use_gateway") is False
+
+
 class TestCompare:
     @pytest.mark.asyncio
     async def test_runs_every_call_even_if_one_fails(self):
         good = MockProvider(response="good answer")
         bad = MockProvider(raise_error="bad model")
 
-        def fake_resolve(providers, provider_name, model):
+        def fake_resolve(providers, provider_name, model, **kwargs):
             return good if provider_name == "good-provider" else bad
 
         with patch("llm_gateway.core.resolve_provider", side_effect=fake_resolve):
