@@ -36,7 +36,7 @@ app = FastAPI(title="llm-gateway-service")
 
 
 def _log(result: CompletionResult, trace_id: str) -> None:
-    with timed_run(TOOL_NAME, result.model, source_location=trace_id) as run:
+    with timed_run(TOOL_NAME, result.model, source_location=trace_id, provider=result.provider) as run:
         run.item_count = 1
         run.input_tokens = result.input_tokens
         run.output_tokens = result.output_tokens
