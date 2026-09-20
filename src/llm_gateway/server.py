@@ -36,7 +36,13 @@ app = FastAPI(title="llm-gateway-service")
 
 
 def _log(result: CompletionResult, trace_id: str) -> None:
-    with timed_run(TOOL_NAME, result.model, source_location=trace_id, provider=result.provider) as run:
+    # Attribute to the real caller when it sent one (via GatewayProvider's
+    # tool_name=) instead of always this service -- see gateway.py's
+    # docstring. A direct/anonymous caller (no tool_name in the request)
+    # still logs as TOOL_NAME, same as before.
+    with timed_run(
+        result.tool_name or TOOL_NAME, result.model, source_location=trace_id, provider=result.provider
+    ) as run:
         run.item_count = 1
         run.input_tokens = result.input_tokens
         run.output_tokens = result.output_tokens
@@ -45,7 +51,7 @@ def _log(result: CompletionResult, trace_id: str) -> None:
 @app.post("/complete", response_model=CompleteResponse, dependencies=[Depends(verify_token)])
 async def complete(req: CompleteRequest) -> CompleteResponse:
     trace_id = str(uuid.uuid4())
-    result = await complete_one(req.provider, req.model, req.system, req.user, images=req.images)
+    result = await complete_one(req.provider, req.model, req.system, req.user, images=req.images, tool_name=req.tool_name)
     _log(result, trace_id)
     if req.trace:
         write_trace(trace_id, "complete", result.provider, result.model, req.system, req.user, result.text, result.error)
@@ -66,7 +72,7 @@ async def complete(req: CompleteRequest) -> CompleteResponse:
 async def compare_endpoint(req: CompareRequest) -> CompareResponse:
     trace_id = str(uuid.uuid4())
     calls = [(c.provider, c.model) for c in req.calls]
-    results = await compare(req.system, req.user, calls)
+    results = await compare(req.system, req.user, calls, tool_name=req.tool_name)
     for result in results:
         _log(result, trace_id)
         if req.trace:

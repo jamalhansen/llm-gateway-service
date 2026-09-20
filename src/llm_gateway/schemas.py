@@ -13,6 +13,11 @@ class CompleteRequest(BaseModel):
     # traces.py's separate database. Default logging (processing_log) stays
     # metadata-only either way. See traces.py's module docstring.
     trace: bool = False
+    # Sent by GatewayProvider when resolve_provider() was given a tool_name --
+    # lets this server's own processing_log row be attributed to the real
+    # caller instead of always "llm-gateway-service". Absent for a direct/
+    # anonymous caller (e.g. a raw curl test); that still logs as this service.
+    tool_name: str | None = None
 
 
 class CompleteResponse(BaseModel):
@@ -35,6 +40,7 @@ class CompareRequest(BaseModel):
     user: str
     calls: list[CompareCall]
     trace: bool = False
+    tool_name: str | None = None
 
 
 class CompareResultItem(BaseModel):

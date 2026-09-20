@@ -1,7 +1,9 @@
 from unittest.mock import patch
 
+import duckdb
 from fastapi.testclient import TestClient
 from local_first_common.testing import MockProvider
+from local_first_common.tracking import get_tracking_db_path
 
 from llm_gateway.server import app
 
@@ -32,6 +34,42 @@ class TestCompleteEndpoint:
         body = response.json()
         assert body["text"] == "a real answer"
         assert "trace_id" in body
+
+    def test_processing_log_attributed_to_the_real_caller_when_tool_name_sent(self, monkeypatch):
+        """Jamal: "LLM gateway service shouldn't really be the tool that is
+        calling LLM in the report, right? It should show the tool it's being
+        called by." When the request carries tool_name (sent by
+        GatewayProvider whenever resolve_provider() was given one), this
+        service's own processing_log row should be attributed to that real
+        caller, not always "llm-gateway-service"."""
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u", "tool_name": "japanese-tutor"},
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] == "japanese-tutor"
+
+    def test_processing_log_attributed_to_this_service_when_no_tool_name_sent(self, monkeypatch):
+        """A direct/anonymous caller (no GatewayProvider, e.g. a raw curl
+        test) has no tool_name to send -- unchanged behavior."""
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u"},
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] == "llm-gateway-service"
 
     def test_images_field_is_forwarded_to_complete_one(self, monkeypatch):
         client = _client(monkeypatch)
@@ -128,6 +166,28 @@ class TestCompareEndpoint:
         assert by_provider["good-provider"]["text"] == "good"
         assert by_provider["bad-provider"]["error"] == "bad"
         assert "trace_id" in body
+
+    def test_every_call_in_the_batch_attributed_to_the_real_caller(self, monkeypatch):
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/compare",
+                json={
+                    "system": "s",
+                    "user": "u",
+                    "calls": [{"provider": "a"}, {"provider": "b"}],
+                    "tool_name": "model-comparison-harness",
+                },
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        rows = conn.execute(
+            "SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 2"
+        ).fetchall()
+        conn.close()
+        assert all(r[0] == "model-comparison-harness" for r in rows)
 
     def test_trace_true_persists_every_call_in_the_batch(self, monkeypatch):
         client = _client(monkeypatch)

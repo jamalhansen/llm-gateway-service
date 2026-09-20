@@ -1110,7 +1110,7 @@ dev = [
 [[package]]
 name = "local-first-common"
 version = "0.1.0"
-source = { git = "https://github.com/jamalhansen/local-first-common.git?branch=main#3240bb68f95cfb8e7e7376deae0282f9c56c191a" }
+source = { git = "https://github.com/jamalhansen/local-first-common.git?branch=main#a15a231a9de7b862f16a7367b145daa7e9ffdfc4" }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "duckdb" },

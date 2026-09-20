@@ -28,6 +28,7 @@ class CompletionResult:
     duration_ms: int
     input_tokens: int | None = None
     output_tokens: int | None = None
+    tool_name: str | None = None
 
 
 async def complete_one(
@@ -36,6 +37,7 @@ async def complete_one(
     system: str,
     user: str,
     images: list[str] | None = None,
+    tool_name: str | None = None,
 ) -> CompletionResult:
     """Run one completion. Provider failures land in the result, not an
     exception -- required for /compare, where one bad model must not sink
@@ -60,6 +62,7 @@ async def complete_one(
             duration_ms=int((time.monotonic() - started) * 1000),
             input_tokens=getattr(provider, "input_tokens", None),
             output_tokens=getattr(provider, "output_tokens", None),
+            tool_name=tool_name,
         )
     except Exception as e:  # noqa: BLE001 - a provider failure is a result, not a crash
         return CompletionResult(
@@ -68,11 +71,14 @@ async def complete_one(
             text=None,
             error=str(e),
             duration_ms=int((time.monotonic() - started) * 1000),
+            tool_name=tool_name,
         )
 
 
-async def compare(system: str, user: str, calls: list[tuple[str, str | None]]) -> list[CompletionResult]:
+async def compare(
+    system: str, user: str, calls: list[tuple[str, str | None]], tool_name: str | None = None
+) -> list[CompletionResult]:
     """Run every requested (provider, model) call concurrently. Comparison is
     the point, so every call runs regardless of whether earlier ones failed.
     """
-    return list(await gather(*(complete_one(p, m, system, user) for p, m in calls)))
+    return list(await gather(*(complete_one(p, m, system, user, tool_name=tool_name) for p, m in calls)))

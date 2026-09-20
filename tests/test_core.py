@@ -17,6 +17,18 @@ class TestCompleteOne:
         assert result.provider == "anthropic"
 
     @pytest.mark.asyncio
+    async def test_tool_name_carried_through_on_success_and_failure(self):
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            result = await complete_one("anthropic", None, "system", "user", tool_name="my-tool")
+        assert result.tool_name == "my-tool"
+
+        broken = MockProvider(raise_error="boom")
+        with patch("llm_gateway.core.resolve_provider", return_value=broken):
+            failed = await complete_one("anthropic", None, "system", "user", tool_name="my-tool")
+        assert failed.tool_name == "my-tool"
+
+    @pytest.mark.asyncio
     async def test_provider_failure_becomes_a_result_not_an_exception(self):
         mock = MockProvider(raise_error="boom")
         with patch("llm_gateway.core.resolve_provider", return_value=mock):
