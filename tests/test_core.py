@@ -29,6 +29,24 @@ class TestCompleteOne:
         assert failed.tool_name == "my-tool"
 
     @pytest.mark.asyncio
+    async def test_source_location_and_item_count_carried_through_on_success_and_failure(self):
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            result = await complete_one(
+                "anthropic", None, "system", "user", source_location="example:あ", item_count=5
+            )
+        assert result.source_location == "example:あ"
+        assert result.item_count == 5
+
+        broken = MockProvider(raise_error="boom")
+        with patch("llm_gateway.core.resolve_provider", return_value=broken):
+            failed = await complete_one(
+                "anthropic", None, "system", "user", source_location="example:あ", item_count=5
+            )
+        assert failed.source_location == "example:あ"
+        assert failed.item_count == 5
+
+    @pytest.mark.asyncio
     async def test_provider_failure_becomes_a_result_not_an_exception(self):
         mock = MockProvider(raise_error="boom")
         with patch("llm_gateway.core.resolve_provider", return_value=mock):

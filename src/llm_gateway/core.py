@@ -29,6 +29,8 @@ class CompletionResult:
     input_tokens: int | None = None
     output_tokens: int | None = None
     tool_name: str | None = None
+    source_location: str | None = None
+    item_count: int | None = None
 
 
 async def complete_one(
@@ -38,6 +40,8 @@ async def complete_one(
     user: str,
     images: list[str] | None = None,
     tool_name: str | None = None,
+    source_location: str | None = None,
+    item_count: int | None = None,
 ) -> CompletionResult:
     """Run one completion. Provider failures land in the result, not an
     exception -- required for /compare, where one bad model must not sink
@@ -63,6 +67,8 @@ async def complete_one(
             input_tokens=getattr(provider, "input_tokens", None),
             output_tokens=getattr(provider, "output_tokens", None),
             tool_name=tool_name,
+            source_location=source_location,
+            item_count=item_count,
         )
     except Exception as e:  # noqa: BLE001 - a provider failure is a result, not a crash
         return CompletionResult(
@@ -72,13 +78,29 @@ async def complete_one(
             error=str(e),
             duration_ms=int((time.monotonic() - started) * 1000),
             tool_name=tool_name,
+            source_location=source_location,
+            item_count=item_count,
         )
 
 
 async def compare(
-    system: str, user: str, calls: list[tuple[str, str | None]], tool_name: str | None = None
+    system: str,
+    user: str,
+    calls: list[tuple[str, str | None]],
+    tool_name: str | None = None,
+    source_location: str | None = None,
+    item_count: int | None = None,
 ) -> list[CompletionResult]:
     """Run every requested (provider, model) call concurrently. Comparison is
     the point, so every call runs regardless of whether earlier ones failed.
     """
-    return list(await gather(*(complete_one(p, m, system, user, tool_name=tool_name) for p, m in calls)))
+    return list(
+        await gather(
+            *(
+                complete_one(
+                    p, m, system, user, tool_name=tool_name, source_location=source_location, item_count=item_count
+                )
+                for p, m in calls
+            )
+        )
+    )

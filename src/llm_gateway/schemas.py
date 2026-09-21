@@ -18,6 +18,16 @@ class CompleteRequest(BaseModel):
     # caller instead of always "llm-gateway-service". Absent for a direct/
     # anonymous caller (e.g. a raw curl test); that still logs as this service.
     tool_name: str | None = None
+    # The database write for an LLM call happens exactly once, here in the
+    # gateway (2026-09-20) -- callers no longer keep their own duplicate
+    # processing_log row, so anything they want persisted about the call has
+    # to travel in the request instead. source_location is the caller's own
+    # per-call context (a file path, a URL, "example:あ") -- without it this
+    # row's source_location falls back to a bare trace_id, which identifies
+    # nothing on its own. item_count is how many logical items one completion
+    # covered (e.g. notes tagged in a single batched prompt); defaults to 1.
+    source_location: str | None = None
+    item_count: int | None = None
 
 
 class CompleteResponse(BaseModel):
@@ -41,6 +51,8 @@ class CompareRequest(BaseModel):
     calls: list[CompareCall]
     trace: bool = False
     tool_name: str | None = None
+    source_location: str | None = None
+    item_count: int | None = None
 
 
 class CompareResultItem(BaseModel):

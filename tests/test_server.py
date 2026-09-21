@@ -73,13 +73,12 @@ class TestCompleteEndpoint:
 
     def test_processing_log_marked_via_gateway(self, monkeypatch):
         """Jamal: pass the tool name through, but also indicate that the
-        call went through the gateway. Every row this service logs for its
-        own request handling is via_gateway=True, distinguishing it from
-        the calling tool's own timed_run() row for the same logical call --
-        both get created for a gateway-routed call, and without this a
-        dashboard summing processing_log by tool_name double-counts every
-        one of them (confirmed live 2026-09-20: obsidian-vault-auto-tagger's
-        real call count was inflated ~2x)."""
+        call went through the gateway. Historically this distinguished the
+        gateway's row from the calling tool's own duplicate timed_run() row
+        for the same call; since 2026-09-20 the calling tool no longer logs
+        its own row at all (Jamal: "an LLM call logged once inside the
+        gateway... written to the database"), so via_gateway now just marks
+        every row this service ever writes -- there's no other kind."""
         client = _client(monkeypatch)
         mock = MockProvider(response="ok")
         with patch("llm_gateway.core.resolve_provider", return_value=mock):
@@ -92,6 +91,72 @@ class TestCompleteEndpoint:
         row = conn.execute("SELECT via_gateway FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
         conn.close()
         assert row[0] is True
+
+    def test_source_location_passed_through_from_request(self, monkeypatch):
+        """Jamal: written to the database once, inside the gateway -- a
+        caller no longer keeps its own row, so its own per-call context (a
+        file path, a URL) has to travel in the request or it's lost. Without
+        this the row's source_location was always a bare trace_id, which
+        identifies nothing about where the call came from."""
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u", "source_location": "example:あ"},
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT source_location FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] == "example:あ"
+
+    def test_source_location_falls_back_to_trace_id_when_not_sent(self, monkeypatch):
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            response = client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u"},
+                headers=AUTH,
+            )
+        trace_id = response.json()["trace_id"]
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT source_location FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] == trace_id
+
+    def test_item_count_passed_through_from_request(self, monkeypatch):
+        """A completion that covered N logical items (e.g. notes tagged in
+        one batched prompt) -- without this, item_count on the single
+        database row always read 1, losing real batch-size information a
+        tool previously tracked in its own now-removed duplicate row."""
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u", "item_count": 5},
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT item_count FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] == 5
+
+    def test_item_count_defaults_to_one_when_not_sent(self, monkeypatch):
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u"},
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT item_count FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] == 1
 
     def test_images_field_is_forwarded_to_complete_one(self, monkeypatch):
         client = _client(monkeypatch)
