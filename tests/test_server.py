@@ -71,6 +71,28 @@ class TestCompleteEndpoint:
         conn.close()
         assert row[0] == "llm-gateway-service"
 
+    def test_processing_log_marked_via_gateway(self, monkeypatch):
+        """Jamal: pass the tool name through, but also indicate that the
+        call went through the gateway. Every row this service logs for its
+        own request handling is via_gateway=True, distinguishing it from
+        the calling tool's own timed_run() row for the same logical call --
+        both get created for a gateway-routed call, and without this a
+        dashboard summing processing_log by tool_name double-counts every
+        one of them (confirmed live 2026-09-20: obsidian-vault-auto-tagger's
+        real call count was inflated ~2x)."""
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+        with patch("llm_gateway.core.resolve_provider", return_value=mock):
+            client.post(
+                "/complete",
+                json={"provider": "anthropic", "system": "s", "user": "u", "tool_name": "japanese-tutor"},
+                headers=AUTH,
+            )
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT via_gateway FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] is True
+
     def test_images_field_is_forwarded_to_complete_one(self, monkeypatch):
         client = _client(monkeypatch)
         captured = {}

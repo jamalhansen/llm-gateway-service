@@ -41,7 +41,11 @@ def _log(result: CompletionResult, trace_id: str) -> None:
     # docstring. A direct/anonymous caller (no tool_name in the request)
     # still logs as TOOL_NAME, same as before.
     with timed_run(
-        result.tool_name or TOOL_NAME, result.model, source_location=trace_id, provider=result.provider
+        result.tool_name or TOOL_NAME,
+        result.model,
+        source_location=trace_id,
+        provider=result.provider,
+        via_gateway=True,
     ) as run:
         run.item_count = 1
         run.input_tokens = result.input_tokens
