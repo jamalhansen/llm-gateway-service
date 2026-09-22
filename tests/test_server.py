@@ -163,6 +163,7 @@ class TestCompleteEndpoint:
         captured = {}
 
         class FakeProvider:
+            provider_name = "anthropic"
             model = "vision-model"
             input_tokens = None
             output_tokens = None
@@ -219,7 +220,9 @@ class TestCompleteEndpoint:
                 headers=AUTH,
             )
         trace_id = response.json()["trace_id"]
-        mock_write.assert_called_once_with(trace_id, "complete", "anthropic", mock.model, "s", "u", "a real answer", None)
+        # mock.provider_name ("mock"), not the requested "anthropic" -- the
+        # trace records what actually served the request.
+        mock_write.assert_called_once_with(trace_id, "complete", mock.provider_name, mock.model, "s", "u", "a real answer", None)
 
 
 class TestCompareEndpoint:
@@ -249,9 +252,11 @@ class TestCompareEndpoint:
         assert response.status_code == 200
         body = response.json()
         assert len(body["results"]) == 2
-        by_provider = {r["provider"]: r for r in body["results"]}
-        assert by_provider["good-provider"]["text"] == "good"
-        assert by_provider["bad-provider"]["error"] == "bad"
+        # Both mocks resolve to the same provider.provider_name ("mock"), so
+        # results are distinguished by outcome rather than the request's
+        # provider label.
+        assert any(r["text"] == "good" for r in body["results"])
+        assert any(r["error"] == "bad" for r in body["results"])
         assert "trace_id" in body
 
     def test_every_call_in_the_batch_attributed_to_the_real_caller(self, monkeypatch):

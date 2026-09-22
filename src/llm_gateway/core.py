@@ -59,7 +59,13 @@ async def complete_one(
         provider = resolve_provider(PROVIDERS, provider_name, model, use_gateway=False)
         text = await provider.acomplete(system, user, images=images)
         return CompletionResult(
-            provider=provider_name,
+            # provider.provider_name, not the raw provider_name request
+            # string: PROVIDERS aliases "local" to OllamaProvider (backward
+            # compat) alongside "ollama" -- logging the request string
+            # instead of the resolved provider's canonical name split
+            # identical Ollama traffic into two provider buckets on the
+            # dashboard. Jamal 2026-09-22: "poor stats hygiene."
+            provider=provider.provider_name,
             model=provider.model,
             text=text if isinstance(text, str) else str(text),
             error=None,
@@ -71,6 +77,9 @@ async def complete_one(
             item_count=item_count,
         )
     except Exception as e:  # noqa: BLE001 - a provider failure is a result, not a crash
+        # Still the raw request string here, not provider.provider_name --
+        # resolve_provider() itself may have failed (unknown provider name),
+        # leaving `provider` unbound, so this is the best info available.
         return CompletionResult(
             provider=provider_name,
             model=model or "",

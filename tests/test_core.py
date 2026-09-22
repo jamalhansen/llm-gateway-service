@@ -14,7 +14,32 @@ class TestCompleteOne:
             result = await complete_one("anthropic", "claude-haiku", "system", "user")
         assert result.text == "a real answer"
         assert result.error is None
-        assert result.provider == "anthropic"
+        # provider.provider_name (the resolved provider's canonical name),
+        # not the raw request string -- MockProvider's is "mock" regardless
+        # of what was requested.
+        assert result.provider == "mock"
+
+    @pytest.mark.asyncio
+    async def test_provider_alias_normalizes_to_the_resolved_providers_own_name(self):
+        """Jamal 2026-09-22: 'local' and 'ollama' both showed up as separate
+        providers on the dashboard -- PROVIDERS aliases "local" to
+        OllamaProvider (backward compat), but the old code logged the raw
+        request string instead of the resolved provider's canonical name, so
+        identical Ollama traffic split into two buckets depending on which
+        alias a caller happened to use."""
+
+        class FakeOllamaProvider:
+            provider_name = "ollama"  # what OllamaProvider actually reports, regardless of which alias resolved to it
+            model = "phi4-mini"
+            input_tokens = None
+            output_tokens = None
+
+            async def acomplete(self, system, user, images=None):
+                return "ok"
+
+        with patch("llm_gateway.core.resolve_provider", return_value=FakeOllamaProvider()):
+            result = await complete_one("local", "phi4-mini", "system", "user")
+        assert result.provider == "ollama"
 
     @pytest.mark.asyncio
     async def test_tool_name_carried_through_on_success_and_failure(self):
@@ -59,6 +84,7 @@ class TestCompleteOne:
         captured = {}
 
         class FakeProvider:
+            provider_name = "anthropic"
             model = "vision-model"
             input_tokens = None
             output_tokens = None
@@ -89,8 +115,12 @@ class TestCompleteOneUsesGatewayFalse:
 class TestCompare:
     @pytest.mark.asyncio
     async def test_runs_every_call_even_if_one_fails(self):
-        good = MockProvider(response="good answer")
-        bad = MockProvider(raise_error="bad model")
+        # model set explicitly on each mock: the success path reports
+        # provider.model (what the resolved instance actually used), and
+        # fake_resolve below ignores the requested model, so without this
+        # both mocks would report "mock" and be indistinguishable by model.
+        good = MockProvider(response="good answer", model="m1")
+        bad = MockProvider(raise_error="bad model", model="m2")
 
         def fake_resolve(providers, provider_name, model, **kwargs):
             return good if provider_name == "good-provider" else bad
@@ -101,9 +131,12 @@ class TestCompare:
             )
 
         assert len(results) == 2
-        by_provider = {r.provider: r for r in results}
-        assert by_provider["good-provider"].text == "good answer"
-        assert by_provider["bad-provider"].error == "bad model"
+        # Keyed by model, not provider: both mocks resolve to the same
+        # provider.provider_name ("mock"), so model is what distinguishes
+        # the two calls here.
+        by_model = {r.model: r for r in results}
+        assert by_model["m1"].text == "good answer"
+        assert by_model["m2"].error == "bad model"
 
     @pytest.mark.asyncio
     async def test_empty_calls_returns_empty_list(self):
