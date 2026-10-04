@@ -308,3 +308,50 @@ class TestHealth:
         response = client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
+
+
+class TestProcessingLogDuration:
+    def test_duration_is_the_completion_time_not_the_logging_time(self, monkeypatch):
+        """Every gateway-routed row from 2026-09-21 to 2026-10-04 had duration_seconds = 0:
+        _log() timed its own (instant) block after complete_one() had already returned.
+        The row must carry the completion's measured duration."""
+        client = _client(monkeypatch)
+        mock = MockProvider(response="ok")
+
+        class _SlowProvider:
+            provider_name = mock.provider_name
+            model = mock.model
+            input_tokens = output_tokens = None
+
+            async def acomplete(self, *a, **kw):
+                import asyncio
+                await asyncio.sleep(0.05)
+                return await mock.acomplete(*a, **kw)
+
+        with patch("llm_gateway.core.resolve_provider", return_value=_SlowProvider()):
+            response = client.post("/complete", json={"provider": "anthropic", "system": "s", "user": "u"}, headers=AUTH)
+        assert response.status_code == 200
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT duration_seconds, success FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] >= 0.05
+        assert abs(row[0] - response.json()["duration_ms"] / 1000) < 0.01
+        assert row[1] is True
+
+    def test_failed_completion_logs_as_a_failure(self, monkeypatch):
+        client = _client(monkeypatch)
+
+        class _Broken:
+            provider_name, model, input_tokens, output_tokens = "anthropic", "m", None, None
+
+            async def acomplete(self, *a, **kw):
+                raise RuntimeError("upstream down")
+
+        with patch("llm_gateway.core.resolve_provider", return_value=_Broken()):
+            response = client.post("/complete", json={"provider": "anthropic", "system": "s", "user": "u"}, headers=AUTH)
+        assert response.status_code == 502
+        conn = duckdb.connect(str(get_tracking_db_path()))
+        row = conn.execute("SELECT success, error_message FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        conn.close()
+        assert row[0] is False
+        assert "upstream down" in row[1]

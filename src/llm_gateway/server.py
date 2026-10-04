@@ -16,7 +16,7 @@ import uuid
 
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
-from local_first_common.tracking import register_tool, timed_run
+from local_first_common.tracking import log_run, register_tool
 
 from .auth import verify_token
 from .core import CompletionResult, compare, complete_one
@@ -45,16 +45,27 @@ def _log(result: CompletionResult, trace_id: str) -> None:
     # caller's own context over the bare trace_id, which identifies nothing
     # on its own; item_count defaults to 1 (one completion) when the caller
     # didn't say it covered more than one logical item.
-    with timed_run(
+    #
+    # Duration comes from the result, not from timing this function: the
+    # completion already happened in complete_one() by the time we get here,
+    # so a timed_run() around this block measured ~0 s. Every gateway-routed
+    # row from 2026-09-21 to 2026-10-04 has duration_seconds = 0 for that
+    # reason, which is why the 16 s/call claude-code slowdown was invisible
+    # in processing_log. Failures are logged as failures for the same reason:
+    # complete_one() returns the error instead of raising it.
+    log_run(
         result.tool_name or TOOL_NAME,
         result.model,
-        source_location=result.source_location or trace_id,
         provider=result.provider,
+        source_location=result.source_location or trace_id,
+        item_count=result.item_count or 1,
+        input_tokens=result.input_tokens,
+        output_tokens=result.output_tokens,
+        duration_seconds=result.duration_ms / 1000,
+        success=result.error is None,
+        error_message=result.error,
         via_gateway=True,
-    ) as run:
-        run.item_count = result.item_count or 1
-        run.input_tokens = result.input_tokens
-        run.output_tokens = result.output_tokens
+    )
 
 
 @app.post("/complete", response_model=CompleteResponse, dependencies=[Depends(verify_token)])
