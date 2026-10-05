@@ -8,6 +8,7 @@ just a trace_id correlating metadata rows -- so a caller can opt in per
 call (`"trace": true`) and get the real request/response persisted here
 instead, in its own file, never mixed into the shared metadata table.
 """
+
 from pathlib import Path
 
 import duckdb

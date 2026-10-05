@@ -9,6 +9,7 @@ dispatch, fallback, and tiering logic already lives here, tested, and there
 is no equivalent asymmetry favoring another language the way Mozilla
 Readability favored TS for the retriever.
 """
+
 from __future__ import annotations
 
 import time

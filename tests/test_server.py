@@ -222,7 +222,9 @@ class TestCompleteEndpoint:
         trace_id = response.json()["trace_id"]
         # mock.provider_name ("mock"), not the requested "anthropic" -- the
         # trace records what actually served the request.
-        mock_write.assert_called_once_with(trace_id, "complete", mock.provider_name, mock.model, "s", "u", "a real answer", None)
+        mock_write.assert_called_once_with(
+            trace_id, "complete", mock.provider_name, mock.model, "s", "u", "a real answer", None
+        )
 
 
 class TestCompareEndpoint:
@@ -275,9 +277,7 @@ class TestCompareEndpoint:
                 headers=AUTH,
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
-        rows = conn.execute(
-            "SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 2"
-        ).fetchall()
+        rows = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 2").fetchall()
         conn.close()
         assert all(r[0] == "model-comparison-harness" for r in rows)
 
@@ -325,11 +325,14 @@ class TestProcessingLogDuration:
 
             async def acomplete(self, *a, **kw):
                 import asyncio
+
                 await asyncio.sleep(0.05)
                 return await mock.acomplete(*a, **kw)
 
         with patch("llm_gateway.core.resolve_provider", return_value=_SlowProvider()):
-            response = client.post("/complete", json={"provider": "anthropic", "system": "s", "user": "u"}, headers=AUTH)
+            response = client.post(
+                "/complete", json={"provider": "anthropic", "system": "s", "user": "u"}, headers=AUTH
+            )
         assert response.status_code == 200
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT duration_seconds, success FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
@@ -348,7 +351,9 @@ class TestProcessingLogDuration:
                 raise RuntimeError("upstream down")
 
         with patch("llm_gateway.core.resolve_provider", return_value=_Broken()):
-            response = client.post("/complete", json={"provider": "anthropic", "system": "s", "user": "u"}, headers=AUTH)
+            response = client.post(
+                "/complete", json={"provider": "anthropic", "system": "s", "user": "u"}, headers=AUTH
+            )
         assert response.status_code == 502
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT success, error_message FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()

@@ -7,6 +7,7 @@ not per-client keys, sessions, or OAuth. Unlike http-retriever-service
 real provider API keys, so auth is required from the start rather than
 added later.
 """
+
 import hmac
 import os
 

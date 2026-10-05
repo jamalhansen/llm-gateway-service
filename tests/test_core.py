@@ -57,17 +57,13 @@ class TestCompleteOne:
     async def test_source_location_and_item_count_carried_through_on_success_and_failure(self):
         mock = MockProvider(response="ok")
         with patch("llm_gateway.core.resolve_provider", return_value=mock):
-            result = await complete_one(
-                "anthropic", None, "system", "user", source_location="example:あ", item_count=5
-            )
+            result = await complete_one("anthropic", None, "system", "user", source_location="example:あ", item_count=5)
         assert result.source_location == "example:あ"
         assert result.item_count == 5
 
         broken = MockProvider(raise_error="boom")
         with patch("llm_gateway.core.resolve_provider", return_value=broken):
-            failed = await complete_one(
-                "anthropic", None, "system", "user", source_location="example:あ", item_count=5
-            )
+            failed = await complete_one("anthropic", None, "system", "user", source_location="example:あ", item_count=5)
         assert failed.source_location == "example:あ"
         assert failed.item_count == 5
 
@@ -126,9 +122,7 @@ class TestCompare:
             return good if provider_name == "good-provider" else bad
 
         with patch("llm_gateway.core.resolve_provider", side_effect=fake_resolve):
-            results = await compare(
-                "system", "user", [("good-provider", "m1"), ("bad-provider", "m2")]
-            )
+            results = await compare("system", "user", [("good-provider", "m1"), ("bad-provider", "m2")])
 
         assert len(results) == 2
         # Keyed by model, not provider: both mocks resolve to the same

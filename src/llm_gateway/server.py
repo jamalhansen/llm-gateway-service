@@ -11,6 +11,7 @@ the real prompt/response persisted to traces.py's separate database. The
 default behavior for every existing caller is unchanged; tracing real
 content is deliberate and per-call, never automatic.
 """
+
 import os
 import uuid
 
@@ -83,7 +84,9 @@ async def complete(req: CompleteRequest) -> CompleteResponse:
     )
     _log(result, trace_id)
     if req.trace:
-        write_trace(trace_id, "complete", result.provider, result.model, req.system, req.user, result.text, result.error)
+        write_trace(
+            trace_id, "complete", result.provider, result.model, req.system, req.user, result.text, result.error
+        )
     if result.error:
         raise HTTPException(status_code=502, detail=result.error)
     return CompleteResponse(
@@ -102,7 +105,12 @@ async def compare_endpoint(req: CompareRequest) -> CompareResponse:
     trace_id = str(uuid.uuid4())
     calls = [(c.provider, c.model) for c in req.calls]
     results = await compare(
-        req.system, req.user, calls, tool_name=req.tool_name, source_location=req.source_location, item_count=req.item_count
+        req.system,
+        req.user,
+        calls,
+        tool_name=req.tool_name,
+        source_location=req.source_location,
+        item_count=req.item_count,
     )
     for result in results:
         _log(result, trace_id)
