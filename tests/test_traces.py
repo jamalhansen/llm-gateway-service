@@ -36,7 +36,7 @@ def test_multiple_writes_accumulate():
     traces.write_trace("b", "compare", "p", "m", "s", "u", "r2")
 
     conn = duckdb.connect(str(traces.TRACE_DB_PATH), read_only=True)
-    count = conn.execute("SELECT COUNT(*) FROM traces").fetchone()[0]
+    count = (conn.execute("SELECT COUNT(*) FROM traces").fetchone() or (0,))[0]
     conn.close()
 
     assert count == 2

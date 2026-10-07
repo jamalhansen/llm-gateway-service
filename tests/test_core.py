@@ -73,7 +73,7 @@ class TestCompleteOne:
         with patch("llm_gateway.core.resolve_provider", return_value=mock):
             result = await complete_one("anthropic", None, "system", "user")
         assert result.text is None
-        assert "boom" in result.error
+        assert result.error is not None and "boom" in result.error
 
     @pytest.mark.asyncio
     async def test_images_are_forwarded_to_the_provider(self):

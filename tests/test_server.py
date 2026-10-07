@@ -52,6 +52,7 @@ class TestCompleteEndpoint:
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] == "japanese-tutor"
 
@@ -68,6 +69,7 @@ class TestCompleteEndpoint:
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT tool_name FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] == "llm-gateway-service"
 
@@ -89,6 +91,7 @@ class TestCompleteEndpoint:
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT via_gateway FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] is True
 
@@ -108,6 +111,7 @@ class TestCompleteEndpoint:
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT source_location FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] == "example:あ"
 
@@ -123,6 +127,7 @@ class TestCompleteEndpoint:
         trace_id = response.json()["trace_id"]
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT source_location FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] == trace_id
 
@@ -141,6 +146,7 @@ class TestCompleteEndpoint:
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT item_count FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] == 5
 
@@ -155,6 +161,7 @@ class TestCompleteEndpoint:
             )
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT item_count FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] == 1
 
@@ -336,6 +343,7 @@ class TestProcessingLogDuration:
         assert response.status_code == 200
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT duration_seconds, success FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] >= 0.05
         assert abs(row[0] - response.json()["duration_ms"] / 1000) < 0.01
@@ -357,6 +365,7 @@ class TestProcessingLogDuration:
         assert response.status_code == 502
         conn = duckdb.connect(str(get_tracking_db_path()))
         row = conn.execute("SELECT success, error_message FROM processing_log ORDER BY id DESC LIMIT 1").fetchone()
+        assert row is not None
         conn.close()
         assert row[0] is False
         assert "upstream down" in row[1]
